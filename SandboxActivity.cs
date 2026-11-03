@@ -29,7 +29,7 @@ public class SandboxActivity : Activity
         mensagem.Text = "Seu parque está esperando por você!\n\nA construção do parque será adicionada nas próximas etapas.";
         mensagem.TextSize = 17;
         mensagem.Gravity = GravityFlags.Center;
-        mensagem.SetTextColor(Color.White;
+        mensagem.SetTextColor(Color.White);
 
         var voltar = new Button(this);
         voltar.Text = "Voltar ao menu";
