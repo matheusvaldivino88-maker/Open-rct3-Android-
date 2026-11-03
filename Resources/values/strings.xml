@@ -1,4 +1,9 @@
 <resources>
-    <string name="app_name">RCT3AndroidTest</string>
-    <string name="app_text">Hello, Android!</string>
+    <string name="app_name">RCT3 Android</string>
+    <string name="title_main">ROLLERCOASTER TYCOON 3</string>
+    <string name="subtitle_main">Crie parques incríveis e viva grandes aventuras</string>
+    <string name="button_play">Jogar</string>
+    <string name="button_sandbox">Modo Sandbox</string>
+    <string name="button_options">Opções</string>
+    <string name="footer_main">Protótipo Android • Em desenvolvimento</string>
 </resources>
