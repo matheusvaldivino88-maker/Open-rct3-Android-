@@ -15,7 +15,7 @@ public class SandboxActivity : Activity
 
         var tela = new LinearLayout(this);
         tela.Orientation = Orientation.Vertical;
-        tela.Gravity = GravityFlags.Center;
+        tela.SetGravity(GravityFlags.Center);
         tela.SetPadding(30, 30, 30, 30);
         tela.SetBackgroundColor(Color.ParseColor("#10251C"));
 
