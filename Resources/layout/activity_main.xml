@@ -1,13 +1,71 @@
 <?xml version="1.0" encoding="utf-8"?>
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    xmlns:tools="http://schemas.android.com/tools"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
-    <TextView 
-        android:layout_width="wrap_content"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:padding="28dp"
+    android:background="#10251C">
+
+    <TextView
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_centerInParent="true"
-        android:text="@string/app_text"
-    />
-</RelativeLayout>
+        android:text="@string/title_main"
+        android:textColor="#F4D27A"
+        android:textSize="34sp"
+        android:textStyle="bold"
+        android:gravity="center"
+        android:layout_marginBottom="8dp" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/subtitle_main"
+        android:textColor="#E6E8D8"
+        android:textSize="15sp"
+        android:gravity="center"
+        android:layout_marginBottom="36dp" />
+
+    <Button
+        android:id="@+id/button_play"
+        android:layout_width="match_parent"
+        android:layout_height="58dp"
+        android:text="@string/button_play"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textAllCaps="false"
+        android:textColor="#10251C"
+        android:backgroundTint="#F4D27A"
+        android:layout_marginBottom="14dp" />
+
+    <Button
+        android:id="@+id/button_sandbox"
+        android:layout_width="match_parent"
+        android:layout_height="58dp"
+        android:text="@string/button_sandbox"
+        android:textSize="18sp"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#376B50"
+        android:layout_marginBottom="14dp" />
+
+    <Button
+        android:id="@+id/button_options"
+        android:layout_width="match_parent"
+        android:layout_height="58dp"
+        android:text="@string/button_options"
+        android:textSize="18sp"
+        android:textAllCaps="false"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#315443" />
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="@string/footer_main"
+        android:textColor="#AFC2B3"
+        android:textSize="12sp"
+        android:gravity="center"
+        android:layout_marginTop="42dp" />
+
+</LinearLayout>
