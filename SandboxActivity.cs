@@ -163,7 +163,7 @@ public class SandboxActivity : Activity
 
         dialogo.SetItems(opcoes, (s, e) =>
         {
-            precoIngresso = int.Parse(opcoes[e]);
+            precoIngresso = int.Parse(opcoes[e.Which]);
             AtualizarPainel();
         });
 
