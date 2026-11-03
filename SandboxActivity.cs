@@ -4,19 +4,25 @@ using Android.OS;
 using Android.Views;
 using Android.Widget;
 using Android.Graphics;
+using System.Collections.Generic;
 
 namespace RCT3AndroidTest;
 
 [Activity(Label = "Modo Sandbox")]
 public class SandboxActivity : Activity
 {
+    int dinheiro = 1000;
+    string ferramenta = "Caminho";
+    TextView saldo;
+    ParkView parque;
+
     protected override void OnCreate(Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
 
         var tela = new LinearLayout(this);
         tela.Orientation = Orientation.Vertical;
-        tela.SetPadding(20, 20, 20, 20);
+        tela.SetPadding(12, 12, 12, 12);
         tela.SetBackgroundColor(Color.ParseColor("#10251C"));
 
         var titulo = new TextView(this);
@@ -25,13 +31,30 @@ public class SandboxActivity : Activity
         titulo.Gravity = GravityFlags.Center;
         titulo.SetTextColor(Color.ParseColor("#F4D27A"));
 
-        var parque = new ParkView(this);
+        saldo = new TextView(this);
+        saldo.TextSize = 18;
+        saldo.Gravity = GravityFlags.Center;
+        saldo.SetTextColor(Color.White);
+        AtualizarSaldo();
+
+        parque = new ParkView(this, AdicionarObjeto);
+
+        var ferramentas = new LinearLayout(this);
+        ferramentas.Orientation = Orientation.Horizontal;
+
+        AdicionarBotao(ferramentas, "Caminho", 20);
+        AdicionarBotao(ferramentas, "Árvore", 30);
+        AdicionarBotao(ferramentas, "Brinquedo", 150);
+        AdicionarBotao(ferramentas, "Montanha-russa", 300);
+        AdicionarBotao(ferramentas, "Remover", 0);
 
         var voltar = new Button(this);
         voltar.Text = "Voltar ao menu";
         voltar.Click += (s, e) => Finish();
 
         tela.AddView(titulo);
+        tela.AddView(saldo);
+        tela.AddView(ferramentas);
         tela.AddView(parque, new LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MatchParent, 0, 1));
         tela.AddView(voltar);
@@ -39,86 +62,176 @@ public class SandboxActivity : Activity
         SetContentView(tela);
     }
 
+    void AdicionarBotao(LinearLayout layout, string nome, int preco)
+    {
+        var botao = new Button(this);
+        botao.Text = nome;
+        botao.TextSize = 10;
+        botao.SetPadding(2, 2, 2, 2);
+        layout.AddView(botao, new LinearLayout.LayoutParams(
+            0, ViewGroup.LayoutParams.WrapContent, 1));
+
+        botao.Click += (s, e) =>
+        {
+            ferramenta = nome;
+            parque.Invalidate();
+        };
+    }
+
+    void AdicionarObjeto(float x, float y)
+    {
+        if (ferramenta == "Remover")
+        {
+            parque.RemoverMaisProximo(x, y);
+            return;
+        }
+
+        int preco = ferramenta switch
+        {
+            "Caminho" => 20,
+            "Árvore" => 30,
+            "Brinquedo" => 150,
+            "Montanha-russa" => 300,
+            _ => 0
+        };
+
+        if (dinheiro < preco)
+        {
+            Toast.MakeText(this, "Dinheiro insuficiente!", ToastLength.Short).Show();
+            return;
+        }
+
+        dinheiro -= preco;
+        parque.Adicionar(ferramenta, x, y);
+        AtualizarSaldo();
+    }
+
+    void AtualizarSaldo()
+    {
+        saldo.Text = $"Dinheiro: $ {dinheiro}";
+    }
+
     public class ParkView : View
     {
-        public ParkView(Android.Content.Context context) : base(context)
+        readonly List<Objeto> objetos = new();
+        readonly System.Action<float, float> aoTocar;
+        readonly Paint tinta = new() { AntiAlias = true };
+
+        class Objeto
         {
+            public string Tipo = "";
+            public float X;
+            public float Y;
+        }
+
+        public ParkView(Android.Content.Context context,
+            System.Action<float, float> callback) : base(context)
+        {
+            aoTocar = callback;
+        }
+
+        public void Adicionar(string tipo, float x, float y)
+        {
+            objetos.Add(new Objeto { Tipo = tipo, X = x, Y = y });
+            Invalidate();
+        }
+
+        public void RemoverMaisProximo(float x, float y)
+        {
+            if (objetos.Count == 0) return;
+
+            int indice = -1;
+            double menor = 65 * 65;
+
+            for (int i = 0; i < objetos.Count; i++)
+            {
+                double dx = objetos[i].X - x;
+                double dy = objetos[i].Y - y;
+                double distancia = dx * dx + dy * dy;
+
+                if (distancia < menor)
+                {
+                    menor = distancia;
+                    indice = i;
+                }
+            }
+
+            if (indice >= 0)
+                objetos.RemoveAt(indice);
+
+            Invalidate();
+        }
+
+        public override bool OnTouchEvent(Android.Views.MotionEvent? e)
+        {
+            if (e?.Action == MotionEventActions.Down)
+            {
+                aoTocar(e.GetX(), e.GetY());
+                return true;
+            }
+
+            return true;
         }
 
         protected override void OnDraw(Canvas canvas)
         {
             base.OnDraw(canvas);
 
-            float w = Width;
-            float h = Height;
-
             canvas.DrawColor(Color.ParseColor("#75B957"));
 
-            var caminho = new Paint
+            tinta.Color = Color.ParseColor("#D8BE91");
+            tinta.StrokeWidth = 38;
+            tinta.SetStyle(Paint.Style.Stroke);
+
+            canvas.DrawLine(0, Height * 0.75f,
+                Width, Height * 0.75f, tinta);
+
+            tinta.SetStyle(Paint.Style.Fill);
+
+            foreach (var obj in objetos)
             {
-                Color = Color.ParseColor("#D8BE91"),
-                StrokeWidth = 38,
-                AntiAlias = true
-            };
+                switch (obj.Tipo)
+                {
+                    case "Caminho":
+                        tinta.Color = Color.ParseColor("#D8BE91");
+                        canvas.DrawCircle(obj.X, obj.Y, 20, tinta);
+                        break;
 
-            canvas.DrawLine(w * 0.1f, h * 0.75f,
-                w * 0.9f, h * 0.75f, caminho);
+                    case "Árvore":
+                        tinta.Color = Color.ParseColor("#754323");
+                        canvas.DrawRect(obj.X - 5, obj.Y,
+                            obj.X + 5, obj.Y + 25, tinta);
 
-            canvas.DrawLine(w * 0.5f, h * 0.75f,
-                w * 0.5f, h * 0.25f, caminho);
+                        tinta.Color = Color.ParseColor("#176B35");
+                        canvas.DrawCircle(obj.X, obj.Y, 20, tinta);
+                        break;
 
-            var lago = new Paint
-            {
-                Color = Color.ParseColor("#45B9DC"),
-                AntiAlias = true
-            };
+                    case "Brinquedo":
+                        tinta.Color = Color.ParseColor("#E8B52E");
+                        canvas.DrawCircle(obj.X, obj.Y, 25, tinta);
 
-            canvas.DrawCircle(w * 0.78f, h * 0.35f,
-                Math.Min(w, h) * 0.12f, lago);
+                        tinta.Color = Color.White;
+                        canvas.DrawCircle(obj.X, obj.Y, 10, tinta);
+                        break;
 
-            var trilho = new Paint
-            {
-                Color = Color.ParseColor("#444444"),
-                StrokeWidth = 9,
-                AntiAlias = true
-            };
+                    case "Montanha-russa":
+                        tinta.Color = Color.ParseColor("#444444");
+                        tinta.StrokeWidth = 8;
+                        tinta.SetStyle(Paint.Style.Stroke);
 
-            trilho.SetStyle(Paint.Style.Stroke);
+                        canvas.DrawLine(obj.X - 35, obj.Y + 20,
+                            obj.X - 10, obj.Y - 30, tinta);
 
-            canvas.DrawLine(w * 0.08f, h * 0.42f,
-                w * 0.25f, h * 0.18f, trilho);
+                        canvas.DrawLine(obj.X - 10, obj.Y - 30,
+                            obj.X + 15, obj.Y + 20, tinta);
 
-            canvas.DrawLine(w * 0.25f, h * 0.18f,
-                w * 0.42f, h * 0.42f, trilho);
+                        canvas.DrawLine(obj.X + 15, obj.Y + 20,
+                            obj.X + 35, obj.Y - 20, tinta);
 
-            canvas.DrawLine(w * 0.42f, h * 0.42f,
-                w * 0.58f, h * 0.22f, trilho);
-
-            canvas.DrawLine(w * 0.58f, h * 0.22f,
-                w * 0.68f, h * 0.42f, trilho);
-
-            DesenharArvore(canvas, w * 0.15f, h * 0.88f);
-            DesenharArvore(canvas, w * 0.88f, h * 0.58f);
-            DesenharArvore(canvas, w * 0.12f, h * 0.12f);
-            DesenharArvore(canvas, w * 0.68f, h * 0.88f);
-        }
-
-        private void DesenharArvore(Canvas canvas, float x, float y)
-        {
-            var tronco = new Paint
-            {
-                Color = Color.ParseColor("#754323"),
-                AntiAlias = true
-            };
-
-            var folhas = new Paint
-            {
-                Color = Color.ParseColor("#176B35"),
-                AntiAlias = true
-            };
-
-            canvas.DrawRect(x - 5, y, x + 5, y + 25, tronco);
-            canvas.DrawCircle(x, y, 19, folhas);
+                        tinta.SetStyle(Paint.Style.Fill);
+                        break;
+                }
+            }
         }
     }
 }
