@@ -5,6 +5,7 @@ using Android.Views;
 using Android.Widget;
 using Android.Graphics;
 using Android.Content;
+using System;
 using System.Collections.Generic;
 
 namespace RCT3AndroidTest;
@@ -42,8 +43,6 @@ public class SandboxActivity : Activity
         saldo = CriarTexto(18);
         painel = CriarTexto(14);
         ferramentaTexto = CriarTexto(14);
-
-        AtualizarPainel();
 
         parque = new ParkView(this, AdicionarObjeto);
 
@@ -139,7 +138,7 @@ public class SandboxActivity : Activity
                 ToastLength.Short).Show();
         }
 
-        parque.SetParkOpen(parqueAberto);
+        parque.SetParkOpen(parqueAberto, visitantes);
         AtualizarPainel();
     }
 
@@ -182,18 +181,17 @@ public class SandboxActivity : Activity
 
     public class ParkView : View
     {
-        readonly List<ParkItem> objetos = new();
-        readonly System.Action<float, float> aoTocar;
-
-        readonly Paint tinta = new()
-        {
-            AntiAlias = true
-        };
-
         const float Celula = 48f;
 
-        bool aberto = false;
+        readonly List<ParkItem> objetos = new();
+        readonly List<Visitante> pessoas = new();
+        readonly Action<float, float> aoTocar;
+        readonly Paint tinta = new() { AntiAlias = true };
+        readonly Random aleatorio = new();
+
+        bool aberto;
         string ferramenta = "Caminho";
+        long ultimoTempo;
 
         class ParkItem
         {
@@ -202,8 +200,20 @@ public class SandboxActivity : Activity
             public float Y;
         }
 
-        public ParkView(Context context,
-            System.Action<float, float> callback) : base(context)
+        class Visitante
+        {
+            public float X;
+            public float Y;
+            public float DeX;
+            public float DeY;
+            public float ParaX;
+            public float ParaY;
+            public float Progresso;
+            public float Velocidade = 0.65f;
+        }
+
+        public ParkView(Context context, Action<float, float> callback)
+            : base(context)
         {
             aoTocar = callback;
         }
@@ -214,9 +224,17 @@ public class SandboxActivity : Activity
             Invalidate();
         }
 
-        public void SetParkOpen(bool valor)
+        public void SetParkOpen(bool valor, int quantidade)
         {
             aberto = valor;
+            pessoas.Clear();
+
+            if (aberto)
+            {
+                CriarVisitantes(quantidade);
+            }
+
+            ultimoTempo = Android.OS.SystemClock.UptimeMillis();
             Invalidate();
         }
 
@@ -275,6 +293,117 @@ public class SandboxActivity : Activity
             }
         }
 
+        bool TemCaminho(float x, float y)
+        {
+            foreach (var obj in objetos)
+            {
+                if (obj.Tipo == "Caminho" &&
+                    Math.Abs(obj.X - x) < 2 &&
+                    Math.Abs(obj.Y - y) < 2)
+                    return true;
+            }
+
+            return false;
+        }
+
+        List<(float x, float y)> CaminhosVizinhos(float x, float y)
+        {
+            var resultado = new List<(float, float)>();
+
+            float[,] direcoes =
+            {
+                { Celula, 0 },
+                { -Celula, 0 },
+                { 0, Celula },
+                { 0, -Celula }
+            };
+
+            for (int i = 0; i < 4; i++)
+            {
+                float nx = x + direcoes[i, 0];
+                float ny = y + direcoes[i, 1];
+
+                if (TemCaminho(nx, ny))
+                    resultado.Add((nx, ny));
+            }
+
+            return resultado;
+        }
+
+        void CriarVisitantes(int quantidade)
+        {
+            var caminhos = new List<ParkItem>();
+
+            foreach (var obj in objetos)
+            {
+                if (obj.Tipo == "Caminho")
+                    caminhos.Add(obj);
+            }
+
+            if (caminhos.Count == 0)
+                return;
+
+            for (int i = 0; i < quantidade; i++)
+            {
+                var inicio = caminhos[aleatorio.Next(caminhos.Count)];
+
+                var pessoa = new Visitante
+                {
+                    X = inicio.X,
+                    Y = inicio.Y,
+                    DeX = inicio.X,
+                    DeY = inicio.Y,
+                    ParaX = inicio.X,
+                    ParaY = inicio.Y,
+                    Progresso = 1f
+                };
+
+                pessoas.Add(pessoa);
+            }
+        }
+
+        void AtualizarVisitantes(float delta)
+        {
+            if (!aberto)
+                return;
+
+            foreach (var pessoa in pessoas)
+            {
+                pessoa.Progresso += delta * pessoa.Velocidade;
+
+                if (pessoa.Progresso >= 1f)
+                {
+                    pessoa.X = pessoa.ParaX;
+                    pessoa.Y = pessoa.ParaY;
+
+                    var vizinhos = CaminhosVizinhos(pessoa.X, pessoa.Y);
+
+                    if (vizinhos.Count > 0)
+                    {
+                        var proximo = vizinhos[aleatorio.Next(vizinhos.Count)];
+
+                        pessoa.DeX = pessoa.X;
+                        pessoa.DeY = pessoa.Y;
+                        pessoa.ParaX = proximo.x;
+                        pessoa.ParaY = proximo.y;
+                        pessoa.Progresso = 0f;
+                    }
+                    else
+                    {
+                        pessoa.Progresso = 1f;
+                    }
+                }
+
+                float p = Math.Clamp(pessoa.Progresso, 0f, 1f);
+
+                pessoa.X = pessoa.DeX +
+                    (pessoa.ParaX - pessoa.DeX) * p;
+
+                pessoa.Y = pessoa.DeY +
+                    (pessoa.ParaY - pessoa.DeY) * p;
+            }
+        }
+
         public override bool OnTouchEvent(MotionEvent? e)
         {
             if (e?.Action == MotionEventActions.Down)
@@ -293,6 +422,15 @@ public class SandboxActivity : Activity
             float w = Width;
             float h = Height;
 
+            long agora = Android.OS.SystemClock.UptimeMillis();
+            float delta = ultimoTempo == 0
+                ? 0.016f
+                : Math.Clamp((agora - ultimoTempo) / 1000f, 0f, 0.05f);
+
+            ultimoTempo = agora;
+
+            AtualizarVisitantes(delta);
+
             canvas.DrawColor(Color.ParseColor("#75B957"));
 
             DesenharGrade(canvas, w, h);
@@ -305,26 +443,22 @@ public class SandboxActivity : Activity
                     case "Caminho":
                         DesenharCaminho(canvas, obj.X, obj.Y);
                         break;
-
                     case "Árvore":
                         DesenharArvore(canvas, obj.X, obj.Y);
                         break;
-
                     case "Brinquedo":
-                        DesenharBrinquedo(canvas, obj.X, obj.Y);
+                        DesenharBrinquedo(canvas, obj.X, obj.Y, agora);
                         break;
-
                     case "Montanha-russa":
-                        DesenharMontanha(canvas, obj.X, obj.Y);
+                        DesenharMontanha(canvas, obj.X, obj.Y, agora);
                         break;
                 }
             }
 
             if (aberto)
-                DesenharVisitantes(canvas, w, h);
+                DesenharVisitantes(canvas);
 
-            // Atualiza a animação visual dos brinquedos e visitantes.
-            PostInvalidateDelayed(100);
+            PostInvalidateDelayed(30);
         }
 
         void DesenharGrade(Canvas canvas, float w, float h)
@@ -345,7 +479,6 @@ public class SandboxActivity : Activity
         void DesenharLago(Canvas canvas, float w, float h)
         {
             tinta.Color = Color.ParseColor("#45B9DC");
-
             canvas.DrawCircle(w * 0.82f, h * 0.18f,
                 Math.Min(w, h) * 0.09f, tinta);
         }
@@ -355,10 +488,8 @@ public class SandboxActivity : Activity
             tinta.Color = Color.ParseColor("#D8BE91");
 
             var area = new RectF(
-                x - Celula / 2,
-                y - Celula / 2,
-                x + Celula / 2,
-                y + Celula / 2);
+                x - Celula / 2, y - Celula / 2,
+                x + Celula / 2, y + Celula / 2);
 
             canvas.DrawRect(area, tinta);
 
@@ -372,7 +503,6 @@ public class SandboxActivity : Activity
         void DesenharArvore(Canvas canvas, float x, float y)
         {
             tinta.Color = Color.ParseColor("#754323");
-
             canvas.DrawRect(x - 5, y, x + 5, y + 25, tinta);
 
             tinta.Color = Color.ParseColor("#176B35");
@@ -382,9 +512,8 @@ public class SandboxActivity : Activity
             canvas.DrawCircle(x - 5, y - 6, 10, tinta);
         }
 
-        void DesenharBrinquedo(Canvas canvas, float x, float y)
+        void DesenharBrinquedo(Canvas canvas, float x, float y, long tempo)
         {
-            long tempo = Android.OS.SystemClock.UptimeMillis();
             float angulo = (tempo % 3000) * 360f / 3000f;
 
             canvas.Save();
@@ -395,7 +524,6 @@ public class SandboxActivity : Activity
 
             tinta.Color = Color.ParseColor("#D94B36");
             tinta.StrokeWidth = 6;
-
             canvas.DrawLine(x - 23, y, x + 23, y, tinta);
             canvas.DrawLine(x, y - 23, x, y + 23, tinta);
 
@@ -405,45 +533,64 @@ public class SandboxActivity : Activity
             canvas.DrawCircle(x, y, 7, tinta);
         }
 
-        void DesenharMontanha(Canvas canvas, float x, float y)
+        void DesenharMontanha(Canvas canvas, float x, float y, long tempo)
         {
+            // Trilhos do circuito
             tinta.Color = Color.ParseColor("#444444");
-            tinta.StrokeWidth = 8;
+            tinta.StrokeWidth = 7;
             tinta.SetStyle(Paint.Style.Stroke);
 
-            canvas.DrawLine(x - 35, y + 20,
-                x - 15, y - 30, tinta);
-
-            canvas.DrawLine(x - 15, y - 30,
-                x + 5, y + 20, tinta);
-
-            canvas.DrawLine(x + 5, y + 20,
-                x + 25, y - 20, tinta);
+            canvas.DrawLine(x - 32, y + 15, x - 20, y - 25, tinta);
+            canvas.DrawLine(x - 20, y - 25, x, y + 15, tinta);
+            canvas.DrawLine(x, y + 15, x + 20, y - 25, tinta);
+            canvas.DrawLine(x + 20, y - 25, x + 32, y + 15, tinta);
 
             tinta.SetStyle(Paint.Style.Fill);
 
-            tinta.Color = Color.ParseColor("#A52A2A");
-            canvas.DrawCircle(x - 15, y - 30, 5, tinta);
+            // Carrinho percorre o circuito em loop
+            float progresso = (tempo % 5000) / 5000f;
+            float angulo = progresso * (float)(Math.PI * 2);
+
+            float cx = x + (float)Math.Cos(angulo) * 27f;
+            float cy = y + (float)Math.Sin(angulo) * 20f;
+
+            tinta.Color = Color.ParseColor("#D92727");
+            canvas.DrawRoundRect(
+                new RectF(cx - 10, cy - 7, cx + 10, cy + 5),
+                4, 4, tinta);
+
+            // Passageiros dentro do carrinho
+            tinta.Color = Color.ParseColor("#F5D0A0");
+            canvas.DrawCircle(cx - 5, cy - 8, 3, tinta);
+            canvas.DrawCircle(cx + 4, cy - 8, 3, tinta);
+
+            tinta.Color = Color.ParseColor("#3157B7");
+            canvas.DrawCircle(cx - 5, cy - 3, 2, tinta);
+            canvas.DrawCircle(cx + 4, cy - 3, 2, tinta);
         }
 
-        void DesenharVisitantes(Canvas canvas, float w, float h)
+        void DesenharVisitantes(Canvas canvas)
         {
-            long tempo = Android.OS.SystemClock.UptimeMillis();
-
-            for (int i = 0; i < 5; i++)
+            foreach (var pessoa in pessoas)
             {
-                float x = (tempo / 15f + i * 85) % Math.Max(w, 1);
-                float y = h * 0.85f + (i % 2) * 12;
-
+                // Corpo
                 tinta.Color = Color.ParseColor("#3157B7");
-                canvas.DrawCircle(x, y, 7, tinta);
+                canvas.DrawCircle(pessoa.X, pessoa.Y, 7, tinta);
 
+                // Cabeça
                 tinta.Color = Color.ParseColor("#F0C49A");
-                canvas.DrawCircle(x, y - 10, 6, tinta);
+                canvas.DrawCircle(pessoa.X, pessoa.Y - 10, 5, tinta);
 
+                // Pernas
                 tinta.Color = Color.ParseColor("#333333");
-                canvas.DrawLine(x, y + 5, x - 4, y + 14, tinta);
-                canvas.DrawLine(x, y + 5, x + 4, y + 14, tinta);
+                tinta.StrokeWidth = 2;
+                canvas.DrawLine(
+                    pessoa.X, pessoa.Y + 5,
+                    pessoa.X - 4, pessoa.Y + 13, tinta);
+
+                canvas.DrawLine(
+                    pessoa.X, pessoa.Y + 5,
+                    pessoa.X + 4, pessoa.Y + 13, tinta);
             }
         }
     }
