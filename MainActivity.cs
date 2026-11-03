@@ -7,7 +7,13 @@ public class MainActivity : Activity
     {
         base.OnCreate(savedInstanceState);
 
-        // Set our view from the "main" layout resource
         SetContentView(Resource.Layout.activity_main);
+
+        var sandboxButton = FindViewById<Button>(Resource.Id.button_sandbox);
+
+        sandboxButton!.Click += (sender, e) =>
+        {
+            StartActivity(new Intent(this, typeof(SandboxActivity)));
+        };
     }
 }
