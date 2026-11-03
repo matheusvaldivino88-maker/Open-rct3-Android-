@@ -3,7 +3,407 @@ using Android.OS;
 using Android.Views;
 using Android.Widget;
 using Android.Graphics;
+using using Android.App;
+using Android.OS;
+using Android.Views;
+using Android.Widget;
+using Android.Graphics;
 using Android.Content;
+using System;
+using System.Collections.Generic;
+
+namespace RCT3AndroidTest;
+
+[Activity(Label = "Modo Sandbox")]
+public class SandboxActivity : Activity
+{
+    int dinheiro = 1000, visitantes = 0, precoIngresso = 20, satisfacao = 80;
+    bool parqueAberto;
+    string ferramenta = "Caminho";
+    TextView saldo = null!, painel = null!, ferramentaTexto = null!;
+    Button botaoEntrada = null!;
+    ParkView parque = null!;
+
+    protected override void OnCreate(Bundle? savedInstanceState)
+    {
+        base.OnCreate(savedInstanceState);
+        var tela = new LinearLayout(this) { Orientation = Orientation.Vertical };
+        tela.SetPadding(5, 5, 5, 5);
+        tela.SetBackgroundColor(Color.ParseColor("#10251C"));
+        var titulo = new TextView(this) { Text = "MEU PARQUE", TextSize = 24, Gravity = GravityFlags.Center };
+        titulo.SetTextColor(Color.ParseColor("#F4D27A"));
+        saldo = CriarTexto(17); painel = CriarTexto(13); ferramentaTexto = CriarTexto(13);
+
+        var scroll = new HorizontalScrollView(this);
+        var lista = new LinearLayout(this) { Orientation = Orientation.Vertical };
+        AdicionarLinha(lista, "Caminho", "Fila", "Árvore", "Remover");
+        AdicionarLinha(lista, "Brinquedo", "Montanha-russa", "Roda-gigante", "Barco viking");
+        AdicionarLinha(lista, "Carrossel", "Xícaras", "Torre de queda", "Bate-bate");
+        AdicionarLinha(lista, "Loja de comida", "Loja de bebidas", "Banheiro");
+        AdicionarLinha(lista, "Trilho reto", "Curva", "Subida", "Estação");
+        scroll.AddView(lista);
+
+        botaoEntrada = new Button(this) { Text = "Abrir parque" };
+        botaoEntrada.Click += (s, e) => AlternarParque();
+        var preco = new Button(this) { Text = "Alterar preço do ingresso" };
+        preco.Click += (s, e) => AlterarPreco();
+        var voltar = new Button(this) { Text = "Voltar ao menu" };
+        voltar.Click += (s, e) => Finish();
+
+        parque = new ParkView(this, AdicionarObjeto, AtualizarEconomia);
+        tela.AddView(titulo); tela.AddView(saldo); tela.AddView(painel);
+        tela.AddView(ferramentaTexto); tela.AddView(scroll); tela.AddView(botaoEntrada);
+        tela.AddView(preco);
+        tela.AddView(parque, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, 0, 1));
+        tela.AddView(voltar);
+        SetContentView(tela); AtualizarPainel();
+    }
+
+    TextView CriarTexto(float tamanho)
+    {
+        var t = new TextView(this) { TextSize = tamanho, Gravity = GravityFlags.Center };
+        t.SetTextColor(Color.White); return t;
+    }
+
+    void AdicionarLinha(LinearLayout lista, params string[] nomes)
+    {
+        var linha = new LinearLayout(this) { Orientation = Orientation.Horizontal };
+        foreach (string nome in nomes)
+        {
+            var b = new Button(this) { Text = nome, TextSize = 10 };
+            b.SetPadding(2, 2, 2, 2);
+            linha.AddView(b, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WrapContent, 1));
+            b.Click += (s, e) => { ferramenta = nome; ferramentaTexto.Text = "Ferramenta: " + nome; parque.SetTool(nome); };
+        }
+        lista.AddView(linha);
+    }
+
+    void AlterarPreco()
+    {
+        string[] opcoes = { "10", "20", "30", "40", "50" };
+        new AlertDialog.Builder(this).SetTitle("Preço do ingresso")
+            .SetItems(opcoes, (s, e) => { precoIngresso = int.Parse(opcoes[e.Which]); AtualizarPainel(); })
+            .SetNegativeButton("Cancelar", (s, e) => { }).Show();
+    }
+
+    void AlternarParque()
+    {
+        parqueAberto = !parqueAberto;
+        botaoEntrada.Text = parqueAberto ? "Fechar parque" : "Abrir parque";
+        if (parqueAberto)
+        {
+            int novos = parque.IniciarParque(12);
+            visitantes = novos;
+            dinheiro += novos * precoIngresso;
+            Toast.MakeText(this, novos > 0 ? "Parque aberto!" : "Construa caminhos para receber visitantes.", ToastLength.Short).Show();
+        }
+        else { parque.FecharParque(); visitantes = 0; Toast.MakeText(this, "Parque fechado.", ToastLength.Short).Show(); }
+        AtualizarPainel();
+    }
+
+    void AdicionarObjeto(float x, float y)
+    {
+        if (ferramenta == "Remover") { parque.RemoverMaisProximo(x, y); return; }
+        int custo = ferramenta switch
+        {
+            "Caminho" => 20, "Fila" => 25, "Árvore" => 30, "Brinquedo" => 150,
+            "Montanha-russa" => 300, "Roda-gigante" => 250, "Barco viking" => 220,
+            "Carrossel" => 180, "Xícaras" => 160, "Torre de queda" => 280, "Bate-bate" => 200,
+            "Loja de comida" => 120, "Loja de bebidas" => 100, "Banheiro" => 100,
+            "Trilho reto" => 35, "Curva" => 40, "Subida" => 45, "Estação" => 60, _ => 0
+        };
+        if (dinheiro < custo) { Toast.MakeText(this, "Dinheiro insuficiente!", ToastLength.Short).Show(); return; }
+        dinheiro -= custo; parque.Adicionar(ferramenta, x, y); AtualizarPainel();
+    }
+
+    void AtualizarEconomia(int receita, int qtd, int sat)
+    {
+        dinheiro += receita; visitantes = parqueAberto ? qtd : 0; satisfacao = sat; AtualizarPainel();
+    }
+
+    void AtualizarPainel()
+    {
+        saldo.Text = "Dinheiro: $ " + dinheiro;
+        painel.Text = "Visitantes: " + visitantes + " | Ingresso: $" + precoIngresso +
+            " | Satisfação: " + satisfacao + "%" + (parqueAberto ? " | Aberto" : " | Fechado");
+    }
+
+    public class ParkView : View
+    {
+        const float C = 48f;
+        readonly List<Item> itens = new();
+        readonly List<Guest> guests = new();
+        readonly Action<float, float> toque;
+        readonly Action<int, int, int> economia;
+        readonly Paint p = new() { AntiAlias = true };
+        readonly Random rng = new();
+        bool aberto;
+        string ferramenta = "Caminho";
+        long ultimo, ultimoCiclo;
+        int receitaAcumulada, satisfacao = 80;
+
+        class Item
+        {
+            public string Tipo = "";
+            public float X, Y;
+            public int Capacidade = 6, Ocupacao, Preco = 8, Espera;
+            public long ProximoCiclo;
+        }
+        class Guest
+        {
+            public float X, Y, DX, DY, TX, TY, Progresso;
+            public int Estado, Alvo = -1, Humor = 80, Tempo;
+            public float Vel = .55f;
+        }
+
+        public ParkView(Context c, Action<float, float> cb, Action<int, int, int> eco) : base(c)
+        { toque = cb; economia = eco; }
+
+        public void SetTool(string t) { ferramenta = t; Invalidate(); }
+        float Snap(float v, int limite) => Math.Clamp((float)(Math.Round(v / C) * C), C / 2, Math.Max(C / 2, limite - C / 2));
+
+        public void Adicionar(string tipo, float x, float y)
+        {
+            float gx = Snap(x, Width), gy = Snap(y, Height);
+            itens.Add(new Item { Tipo = tipo, X = gx, Y = gy,
+                Capacidade = tipo == "Montanha-russa" ? 12 : tipo == "Roda-gigante" ? 10 : 6,
+                Preco = tipo == "Montanha-russa" ? 15 : 8 });
+            Invalidate();
+        }
+
+        public void RemoverMaisProximo(float x, float y)
+        {
+            int idx = -1; double menor = C * C;
+            for (int i = 0; i < itens.Count; i++)
+            {
+                double dx = itens[i].X - x, dy = itens[i].Y - y, d = dx * dx + dy * dy;
+                if (d < menor) { menor = d; idx = i; }
+            }
+            if (idx >= 0) itens.RemoveAt(idx);
+            else Toast.MakeText(Context, "Nenhum objeto próximo.", ToastLength.Short).Show();
+            Invalidate();
+        }
+
+        bool Caminho(float x, float y, bool fila = false)
+        {
+            foreach (var a in itens)
+                if ((a.Tipo == "Caminho" || (fila && a.Tipo == "Fila")) &&
+                    Math.Abs(a.X - x) < 2 && Math.Abs(a.Y - y) < 2) return true;
+            return false;
+        }
+
+        List<(float x, float y)> Vizinhos(float x, float y)
+        {
+            var r = new List<(float, float)>();
+            float[,] d = { { C, 0 }, { -C, 0 }, { 0, C }, { 0, -C } };
+            for (int i = 0; i < 4; i++) if (Caminho(x + d[i, 0], y + d[i, 1], true)) r.Add((x + d[i, 0], y + d[i, 1]));
+            return r;
+        }
+
+        public int IniciarParque(int quantidade)
+        {
+            aberto = true; guests.Clear();
+            var caminhos = new List<Item>();
+            foreach (var a in itens) if (a.Tipo == "Caminho") caminhos.Add(a);
+            if (caminhos.Count == 0) { aberto = false; return 0; }
+            int n = Math.Min(quantidade, Math.Max(3, caminhos.Count * 2));
+            for (int i = 0; i < n; i++)
+            {
+                var a = caminhos[rng.Next(caminhos.Count)];
+                guests.Add(new Guest { X = a.X, Y = a.Y, DX = a.X, DY = a.Y, TX = a.X, TY = a.Y });
+            }
+            ultimo = Android.OS.SystemClock.UptimeMillis(); ultimoCiclo = ultimo;
+            return guests.Count;
+        }
+
+        public void FecharParque()
+        {
+            aberto = false; guests.Clear();
+            foreach (var a in itens) { a.Ocupacao = 0; a.Espera = 0; }
+            Invalidate();
+        }
+
+        public override bool OnTouchEvent(MotionEvent? e)
+        {
+            if (e?.Action == MotionEventActions.Down) { toque(e.GetX(), e.GetY()); return true; }
+            return true;
+        }
+
+        bool EhAtracao(Item a) => a.Tipo == "Brinquedo" || a.Tipo == "Montanha-russa" ||
+            a.Tipo == "Roda-gigante" || a.Tipo == "Barco viking" || a.Tipo == "Carrossel" ||
+            a.Tipo == "Xícaras" || a.Tipo == "Torre de queda" || a.Tipo == "Bate-bate";
+
+        int CaminhoPerto(Item a, bool aceitarFila)
+        {
+            for (int i = 0; i < itens.Count; i++)
+                if ((itens[i].Tipo == "Caminho" || (aceitarFila && itens[i].Tipo == "Fila")) &&
+                    Math.Abs(itens[i].X - a.X) <= C * 1.5f && Math.Abs(itens[i].Y - a.Y) <= C * 1.5f) return i;
+            return -1;
+        }
+
+        int AtracaoPerto(Guest g)
+        {
+            for (int i = 0; i < itens.Count; i++)
+                if (EhAtracao(itens[i]) && CaminhoPerto(itens[i], true) >= 0 &&
+                    Math.Abs(itens[i].X - g.X) <= C * 1.5f && Math.Abs(itens[i].Y - g.Y) <= C * 1.5f) return i;
+            return -1;
+        }
+
+        void Atualizar(float dt, long agora)
+        {
+            if (!aberto) return;
+            foreach (var a in itens)
+            {
+                if (EhAtracao(a) && a.Ocupacao > 0 && agora >= a.ProximoCiclo)
+                {
+                    a.Ocupacao = 0; a.Espera = 0; a.ProximoCiclo = agora + 2500;
+                }
+            }
+
+            foreach (var g in guests)
+            {
+                if (g.Estado == 2)
+                {
+                    g.Tempo--;
+                    if (g.Tempo <= 0)
+                    {
+                        if (g.Alvo >= 0 && g.Alvo < itens.Count) itens[g.Alvo].Ocupacao = Math.Max(0, itens[g.Alvo].Ocupacao - 1);
+                        g.Estado = 0; g.Alvo = -1; g.Humor = Math.Min(100, g.Humor + 4);
+                    }
+                    continue;
+                }
+                if (g.Estado == 3)
+                {
+                    g.Tempo--;
+                    if (g.Tempo <= 0) { g.Estado = 0; g.Humor = Math.Min(100, g.Humor + 3); }
+                    continue;
+                }
+
+                g.Progresso += dt * g.Vel;
+                if (g.Progresso >= 1)
+                {
+                    g.X = g.TX; g.Y = g.TY;
+                    int alvo = AtracaoPerto(g);
+                    if (alvo >= 0 && rng.Next(100) < 22)
+                    {
+                        var a = itens[alvo];
+                        int fila = CaminhoPerto(a, true);
+                        bool temFila = fila >= 0 && itens[fila].Tipo == "Fila";
+                        if (a.Ocupacao < a.Capacidade && (temFila || a.Ocupacao == 0))
+                        {
+                            a.Ocupacao++; a.ProximoCiclo = agora + (a.Tipo == "Montanha-russa" ? 7000 : 5000);
+                            g.Estado = 2; g.Alvo = alvo; g.Tempo = a.Tipo == "Montanha-russa" ? 220 : 160;
+                            receitaAcumulada += a.Preco; g.Humor = Math.Min(100, g.Humor + 2);
+                            continue;
+                        }
+                        a.Espera++; g.Humor = Math.Max(25, g.Humor - 1);
+                    }
+
+                    int loja = -1;
+                    for (int i = 0; i < itens.Count; i++)
+                        if ((itens[i].Tipo == "Loja de comida" || itens[i].Tipo == "Loja de bebidas" || itens[i].Tipo == "Banheiro") &&
+                            Math.Abs(itens[i].X - g.X) <= C && Math.Abs(itens[i].Y - g.Y) <= C) { loja = i; break; }
+                    if (loja >= 0 && rng.Next(100) < 10)
+                    {
+                        var l = itens[loja];
+                        if (l.Tipo == "Banheiro") { g.Tempo = 90; g.Estado = 3; }
+                        else { receitaAcumulada += l.Tipo == "Loja de comida" ? 12 : 7; g.Tempo = 45; g.Estado = 3; }
+                        continue;
+                    }
+
+                    var viz = Vizinhos(g.X, g.Y);
+                    if (viz.Count > 0)
+                    {
+                        var prox = viz[rng.Next(viz.Count)];
+                        g.DX = g.X; g.DY = g.Y; g.TX = prox.x; g.TY = prox.y; g.Progresso = 0;
+                    }
+                    else { g.Progresso = 0; g.Humor = Math.Max(20, g.Humor - 1); }
+                }
+                float q = Math.Clamp(g.Progresso, 0, 1);
+                g.X = g.DX + (g.TX - g.DX) * q; g.Y = g.DY + (g.TY - g.DY) * q;
+            }
+
+            if (agora - ultimoCiclo > 5000)
+            {
+                int soma = 0;
+                foreach (var g in guests) soma += g.Humor;
+                satisfacao = guests.Count == 0 ? 80 : soma / guests.Count;
+                int r = receitaAcumulada; receitaAcumulada = 0;
+                economia(r, guests.Count, satisfacao);
+                ultimoCiclo = agora;
+            }
+        }
+
+        protected override void OnDraw(Canvas c)
+        {
+            base.OnDraw(c);
+            long agora = Android.OS.SystemClock.UptimeMillis();
+            float dt = ultimo == 0 ? .016f : Math.Clamp((agora - ultimo) / 1000f, 0, .05f);
+            ultimo = agora; Atualizar(dt, agora);
+            c.DrawColor(Color.ParseColor("#75B957"));
+            p.Color = Color.ParseColor("#558A4C"); p.StrokeWidth = 1; p.SetStyle(Paint.Style.Stroke);
+            for (float x = 0; x < Width; x += C) c.DrawLine(x, 0, x, Height, p);
+            for (float y = 0; y < Height; y += C) c.DrawLine(0, y, Width, y, p);
+            p.SetStyle(Paint.Style.Fill);
+            p.Color = Color.ParseColor("#45B9DC"); c.DrawCircle(Width * .82f, Height * .18f, Math.Min(Width, Height) * .09f, p);
+
+            foreach (var a in itens) DesenharItem(c, a, agora);
+            if (aberto) foreach (var g in guests)
+            {
+                p.Color = g.Estado == 2 ? Color.ParseColor("#F4D27A") : Color.ParseColor("#3157B7");
+                c.DrawCircle(g.X, g.Y, 7, p); p.Color = Color.ParseColor("#F0C49A"); c.DrawCircle(g.X, g.Y - 10, 5, p);
+            }
+            PostInvalidateDelayed(40);
+        }
+
+        void Bloco(Canvas c, Item a, string cor)
+        {
+            p.Color = Color.ParseColor(cor); c.DrawRect(a.X - 23, a.Y - 23, a.X + 23, a.Y + 23, p);
+        }
+
+        void DesenharItem(Canvas c, Item a, long t)
+        {
+            switch (a.Tipo)
+            {
+                case "Caminho": Bloco(c, a, "#D8BE91"); break;
+                case "Fila":
+                    Bloco(c, a, "#D6A84A"); p.Color = Color.ParseColor("#704A20"); p.StrokeWidth = 3; p.SetStyle(Paint.Style.Stroke);
+                    c.DrawRect(a.X - 15, a.Y - 15, a.X + 15, a.Y + 15, p); p.SetStyle(Paint.Style.Fill); break;
+                case "Árvore":
+                    p.Color = Color.ParseColor("#754323"); c.DrawRect(a.X - 5, a.Y, a.X + 5, a.Y + 25, p);
+                    p.Color = Color.ParseColor("#176B35"); c.DrawCircle(a.X, a.Y, 20, p); break;
+                case "Loja de comida": Loja(c, a, "#D64B37", "COMIDA"); break;
+                case "Loja de bebidas": Loja(c, a, "#36A9C7", "BEBIDA"); break;
+                case "Banheiro": Loja(c, a, "#3979D4", "WC"); break;
+                case "Montanha-russa":
+                    p.Color = Color.ParseColor("#444444"); p.StrokeWidth = 5; p.SetStyle(Paint.Style.Stroke);
+                    c.DrawLine(a.X - 25, a.Y + 15, a.X - 12, a.Y - 22, p); c.DrawLine(a.X - 12, a.Y - 22, a.X, a.Y + 15, p);
+                    c.DrawLine(a.X, a.Y + 15, a.X + 12, a.Y - 22, p); c.DrawLine(a.X + 12, a.Y - 22, a.X + 25, a.Y + 15, p);
+                    p.SetStyle(Paint.Style.Fill); p.Color = Color.ParseColor("#D92727");
+                    float ang = (t % 4000) / 4000f * (float)(Math.PI * 2);
+                    c.DrawCircle(a.X + (float)Math.Cos(ang) * 22, a.Y + (float)Math.Sin(ang) * 17, 7, p); break;
+                case "Roda-gigante":
+                    p.Color = Color.ParseColor("#555555"); p.StrokeWidth = 4; p.SetStyle(Paint.Style.Stroke); c.DrawCircle(a.X, a.Y - 5, 25, p); p.SetStyle(Paint.Style.Fill);
+                    for (int i = 0; i < 8; i++) { double z = i * Math.PI / 4 + t / 1000.0; p.Color = Color.ParseColor("#D94B36"); c.DrawCircle(a.X + (float)Math.Cos(z) * 25, a.Y - 5 + (float)Math.Sin(z) * 25, 5, p); } break;
+                default:
+                    p.Color = Color.ParseColor("#E8B52E"); c.DrawCircle(a.X, a.Y, 23, p);
+                    p.Color = Color.ParseColor("#D94B36"); c.DrawCircle(a.X, a.Y, 9, p); break;
+            }
+            if (EhAtracao(a))
+            {
+                p.Color = Color.White; p.TextSize = 11; p.TextAlign = Paint.Align.Center;
+                c.DrawText(a.Ocupacao + "/" + a.Capacidade, a.X, a.Y + 38, p);
+            }
+        }
+
+        void Loja(Canvas c, Item a, string cor, string nome)
+        {
+            p.Color = Color.ParseColor(cor); c.DrawRect(a.X - 20, a.Y - 18, a.X + 20, a.Y + 18, p);
+            p.Color = Color.White; p.TextSize = 9; p.TextAlign = Paint.Align.Center; c.DrawText(nome, a.X, a.Y + 3, p);
+        }
+    }
+}
+Content;
 using System;
 using System.Collections.Generic;
 
